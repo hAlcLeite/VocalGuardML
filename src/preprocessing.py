@@ -5,8 +5,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.feature_selection import SelectFromModel
 from sklearn.ensemble import RandomForestClassifier
-import os
 import joblib
+import librosa
+import librosa.display
+import os
+
 
 def load_features(features_path):
     """
@@ -166,6 +169,42 @@ def split_data(df, selected_features, test_size=0.2, val_size=0.25, random_state
     
     return X_train, X_val, X_test, y_train, y_val, y_test
 
+
+def extract_audio_features(file_path, sr=22050, n_mfcc=13):
+    """
+    Extract key audio features from a .wav file. This will mainly be used to gather information from the FE
+
+    Parameters:
+    file_path (str): Path to the audio file
+    sr (int): Sample rate for loading the audio
+    n_mfcc (int): Number of MFCCs to extract
+
+    Returns:
+    dict: Extracted features
+    """
+    try:
+        y, sr = librosa.load(file_path, sr=sr)
+        
+        # Extract features
+        features = {
+            'chroma_stft': np.mean(librosa.feature.chroma_stft(y=y, sr=sr)),
+            'rmse': np.mean(librosa.feature.rms(y=y)),
+            'spectral_centroid': np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)),
+            'spectral_bandwidth': np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr)),
+            'rolloff': np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr)),
+            'zero_crossing_rate': np.mean(librosa.feature.zero_crossing_rate(y)),
+        }
+        
+        # Extract MFCCs
+        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc)
+        for i in range(n_mfcc):
+            features[f'mfcc_{i+1}'] = np.mean(mfccs[i])
+
+        return features
+    except Exception as e:
+        print(f"Error processing {file_path}: {e}")
+        return None
+
 def preprocess_data(features_path, output_dir='data/processed', n_features=None):
     """
     Preprocess the data: load, clean, select features, and split
@@ -211,14 +250,51 @@ def preprocess_data(features_path, output_dir='data/processed', n_features=None)
     
     return X_train, X_val, X_test, y_train, y_val, y_test, selected_features
 
+
+def process_audio_files(audio_dir, output_csv='data/processed/audio_features.csv'):
+    """
+    Process all .wav files in a directory and save extracted features. This will be used to gather information from the FE
+
+    Parameters:
+    audio_dir (str): Directory containing .wav files
+    output_csv (str): Path to save extracted features as a CSV file
+
+    Returns:
+    pd.DataFrame: DataFrame containing extracted features
+    """
+    feature_list = []
+    
+    for file in os.listdir(audio_dir):
+        if file.endswith(".wav"):
+            file_path = os.path.join(audio_dir, file)
+            features = extract_audio_features(file_path)
+            if features:
+                features['file_name'] = file  # Store file name for reference
+                feature_list.append(features)
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(feature_list)
+    
+    # Save to CSV
+    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+    df.to_csv(output_csv, index=False)
+    
+    print(f"Extracted features saved to {output_csv}")
+    return df
+
+
 if __name__ == "__main__":
     # Define paths with correct relative paths
     base_dir = os.path.dirname(os.getcwd())  # Go up one level to the project root
+    audio_dir = os.path.join(base_dir, 'data', 'raw', 'audio')  # Raw .wav files
     features_path = os.path.join(base_dir, 'data', 'processed', 'audio_features.csv')
     output_dir = os.path.join(base_dir, 'data', 'processed')
     
     print(f"Looking for features file at: {features_path}")
     print(f"Output directory: {output_dir}")
+    
+    print(f"Extracting features from {audio_dir}...")
+    process_audio_files(audio_dir, features_path)  # Convert .wav to CSV
     
     # Preprocess the data
     X_train, X_val, X_test, y_train, y_val, y_test, selected_features = preprocess_data(
