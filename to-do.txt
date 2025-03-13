@@ -1,0 +1,7 @@
+Data set from Kaggle used: https://www.kaggle.com/datasets/birdy654/deep-voice-deepfake-voice-recognition
+https://www.kaggle.com/code/janvisoni23/deep-fake-voice-recognition/notebook
+
+
+Wavefake: https://zenodo.org/records/4904579
+LJ Dataset: https://keithito.com/LJ-Speech-Dataset/
+
